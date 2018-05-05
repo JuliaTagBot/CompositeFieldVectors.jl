@@ -13,27 +13,21 @@ export CompositeFieldVector,
        length
 
 const LOOKUP = 1
+const LENGTH = 2
+const FIELDTYPE = 3
 
 abstract type CompositeFieldVector{L,N,T} <: AbstractVector{T} end
 
 include("methods.jl")
 
-mutable struct SubParams{A,S}
-    p2::A
-    p3::A
-end
-
-mutable struct Params{L,N,T,S} <: CompositeFieldVector{L,N,T}
-    p1::T
-    p2::T
-    sub::S
-end
-
 (::Type{F})(args...) where F<:CompositeFieldVector = begin
-    lookup = buildlookup(args, 1, 1)
-    F{lookup, length(lookup)}(args...)
+    lookup = buildlookup(args, 1)
+    b = body(F)
+    types = union(b.types)
+    paramdif = symdiff(b.parameters, b.super.parameters[LOOKUP:LENGTH]) 
+    userparams = typeof.(args[indexin(types, paramdif)])
+    F{lookup, length(lookup), userparams...}(args...)
 end
-
 
 buildlookup(fs::Tuple{T,Vararg}, i, l...) where T = 
     (buildlookup(fs[1], i, l...)..., buildlookup(Base.tail(fs), i + 1, l...)...)
@@ -41,11 +35,9 @@ buildlookup(fs::Tuple{T}, i, l...) where T = buildlookup(fs[1], i, l...)
 buildlookup(fs::Tuple{}, i, l...) = tuple()
 buildlookup(f::Number, i, l...) = ((l..., i),)
 buildlookup(f, i, l...) = 
-    buildlookup(fieldtuple(f, tuple(fieldnames(f)...)), 1, l..., i)
+    buildlookup((getfield.(f, fieldnames(f))...), 1, l..., i)
 
-fieldtuple(field, fnames::Tuple{Vararg}) = 
-    (getfield(field, fnames[1]), fieldtuple(field, fnames[2:end])...)
-fieldtuple(field, fnames::Tuple{Symbol}) = (getfield(field, fnames[1]),)
-fieldtuple(field, fnames::Tuple{}) = tuple()
+body(x::UnionAll) = body(x.body)
+body(x::DataType) = x
 
 end # module
