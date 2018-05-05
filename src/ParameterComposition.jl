@@ -1,41 +1,51 @@
 module ParameterComposition
 
-using StaticArrays
+import Base: getindex, setindex!, size, vec, show, length#, 
+             # similar, convert, map, map!, reduce, mapreduce, broadcast,
+             # broadcast!, conj, hcat, vcat, ones, zeros, one, reshape, fill, fill!, inv,
+             # iszero, sum, prod, count, any, all, minimum, maximum, extrema, mean,
+             # copy, read, read!, write
 
-
-import Base: getindex, setindex!, size, similar, vec, show, length, convert, promote_op,
-             promote_rule, map, map!, reduce, reducedim, mapreducedim, mapreduce, broadcast,
-             broadcast!, conj, hcat, vcat, ones, zeros, one, reshape, fill, fill!, inv,
-             iszero, sum, prod, count, any, all, minimum, maximum, extrema, mean,
-             copy, read, read!, write
-
-export CompositeFieldVector, 
-       getindex, 
-       setindex!, 
-       size, 
+export CompositeFieldVector,
+       getindex,
+       setindex!,
+       size,
        length
 
-const TUPLELOOKUP = 3
-abstract type CompositeFieldVector{N,T,L} end
+const LOOKUP = 1
 
-length(x::CompositeFieldVector) = length(typeof(x).parameters[TUPLELOOKUP])
-size(x::CompositeFieldVector) = (length(x),)
+include("methods.jl")
 
-getindex(v::CompositeFieldVector, i::Int) = 
-    dogetfield(v, typeof(v).parameters[TUPLELOOKUP], i)
+abstract type CompositeFieldVector{L,N,T} <: AbstractVector{T} end
 
-setindex!(v::CompositeFieldVector, x, i::Int) = begin
-    dosetfield!(v, typeof(v).parameters[TUPLELOOKUP], i, x)
-    nothing
+(::Type{F})(args...) where F<:CompositeFieldVector = begin
+    lookup = buildlookup(args, 1, 1)
+    F{lookup, length(lookup)}(args...)
 end
 
-dosetfield!(v, l, i, x) = recursive_setfield!(v, l[i], x) # Separated out for type stability
-dogetfield(v, l, i) = recursive_getfield(v, l[i]) # Separated out for type stability
+mutable struct SubParams{A,S}
+    p2::A
+    p3::A
+end
 
-recursive_setfield!(v, l::Tuple{Int,Vararg}, x) = recursive_setfield!(getfield(v, l[1]), l[2:end], x); nothing
-recursive_setfield!(v::V, l::Tuple{Int}, x) where V = setfield!(v, l[1], x); nothing
+mutable struct Params{L,N,T,S} <: CompositeFieldVector{L,N,T}
+    p1::T
+    p2::T
+    sub::S
+end
 
-recursive_getfield(v, l::Tuple{Int,Vararg}) = recursive_getfield(getfield(v, l[1]), l[2:end])
-recursive_getfield(v, l::Tuple{Int}) = getfield(v, l[1])
+
+buildlookup(fs::Tuple{T,Vararg}, i, l...) where T = 
+    (buildlookup(fs[1], i, l...)..., buildlookup(Base.tail(fs), i + 1, l...)...)
+buildlookup(fs::Tuple{T}, i, l...) where T = buildlookup(fs[1], i, l...)
+buildlookup(fs::Tuple{}, i, l...) = tuple()
+buildlookup(f::Number, i, l...) = ((l..., i),)
+buildlookup(f, i, l...) = 
+    buildlookup(fieldtuple(f, tuple(fieldnames(f)...)), 1, l..., i)
+
+fieldtuple(field, fnames::Tuple{Vararg}) = 
+    (getfield(field, fnames[1]), fieldtuple(field, fnames[2:end])...)
+fieldtuple(field, fnames::Tuple{Symbol}) = (getfield(field, fnames[1]),)
+fieldtuple(field, fnames::Tuple{}) = tuple()
 
 end # module
