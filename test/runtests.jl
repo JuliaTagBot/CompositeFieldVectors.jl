@@ -44,9 +44,9 @@ end
     @test params[4] === 4.0
     @test params[[1,2,4]] == [1.0,2.0,4.0]
     @test params[:] == [1.0,2.0,3.0,4.0,5.0,6.0]
+    @test vec(params) == [1.0,2.0,3.0,4.0,5.0,6.0]
     @test length(params) === 6
     @test size(params) === (6,)
-
     params[1] = 11.0
     @test params[1] === 11.0
     setindex!(params, 33.0, 3)
@@ -57,6 +57,11 @@ end
 # @code_warntype getindex(params, 4)
 # @code_warntype params[[1,2,4]] == [1.0,2.0,4.0]
 # @code_warntype params[:] == [1.0,2.0,3.0,4.0]
+
+# @code_lowered setindex!(params, 33.0, 3)
+# @code_lowered getindex(params, 4)
+# @code_lowered params[[1,2,4]] == [1.0,2.0,4.0]
+# @code_lowered params[:] == [1.0,2.0,3.0,4.0]
 
 # @code_llvm setindex!(params, 33.0, 3)
 # @code_llvm getindex(params, 4)
