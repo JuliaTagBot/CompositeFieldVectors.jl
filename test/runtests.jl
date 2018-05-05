@@ -1,6 +1,5 @@
-using Revise
-using ParameterComposition
-using ParameterComposition: buildlookup
+using CompositeFieldVectors
+using CompositeFieldVectors: buildlookup
 
 @static if VERSION < v"0.7.0-DEV.2005"
     using Base.Test

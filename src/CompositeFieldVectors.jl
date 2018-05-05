@@ -1,4 +1,4 @@
-module ParameterComposition
+module CompositeFieldVectors
 
 import Base: getindex, setindex!, size, vec, show, length#, 
              # similar, convert, map, map!, reduce, mapreduce, broadcast,
@@ -14,14 +14,9 @@ export CompositeFieldVector,
 
 const LOOKUP = 1
 
-include("methods.jl")
-
 abstract type CompositeFieldVector{L,N,T} <: AbstractVector{T} end
 
-(::Type{F})(args...) where F<:CompositeFieldVector = begin
-    lookup = buildlookup(args, 1, 1)
-    F{lookup, length(lookup)}(args...)
-end
+include("methods.jl")
 
 mutable struct SubParams{A,S}
     p2::A
@@ -32,6 +27,11 @@ mutable struct Params{L,N,T,S} <: CompositeFieldVector{L,N,T}
     p1::T
     p2::T
     sub::S
+end
+
+(::Type{F})(args...) where F<:CompositeFieldVector = begin
+    lookup = buildlookup(args, 1, 1)
+    F{lookup, length(lookup)}(args...)
 end
 
 
