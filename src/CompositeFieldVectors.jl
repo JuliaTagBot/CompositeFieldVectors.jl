@@ -1,11 +1,20 @@
+__precompile__()
+
 module CompositeFieldVectors
 
-import Base: getindex, setindex!, size, vec, length, copy 
-             # read, read!, write
+using Requires
+
+@require Unitful begin
+    using Unitful
+end
+ 
+
+import Base: getindex, setindex!, endof, size, vec, length, copy # read, read!, write
 
 export CompositeFieldVector,
        getindex,
        setindex!,
+       endof,
        size,
        vec,
        length,
@@ -14,11 +23,6 @@ export CompositeFieldVector,
        compositefieldparents,
        compositefieldname,
        compositefieldnames
-
-
-const LOOKUP = 1
-const LENGTH = 2
-const FIELDTYPE = 3
 
 include("constructors.jl")
 include("methods.jl")

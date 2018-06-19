@@ -1,46 +1,60 @@
 const CFV = CompositeFieldVector
 
-length(::CFV{L,N}) where {L,N} = N
-size(::CFV{L,N}) where {L,N} = (N,)
+length(::CFV{T,L,N}) where {T,L,N} = N
+size(::CFV{T,L,N}) where {T,L,N} = (N,)
 vec(v::CFV) = getindex(v, :)
 copy(v::CFV) = typeof(v)([getfield(v, f) for f in fieldnames(v)]...)
+endof(v::CFV{T,L,N}) where {T,L,N} = N
 
-getindex(v::CFV{L}, I::AbstractArray) where L = [dogetfield(v, L, i) for i in I]
-getindex(v::CFV{L}, I::Colon) where L = [dogetfield(v, L, i) for i in 1:length(v)]
-getindex(v::CFV{L}, i::Int) where L = dogetfield(v, L, i)
+getindex(v::CFV{T,L}, I::AbstractArray) where {T,L} = [lookupget(v, T, L, i) for i in I]
+getindex(v::CFV{T,L,N}, I::Colon) where {T,L,N} = [lookupget(v, T, L, i) for i in 1:N]
+getindex(v::CFV{T,L}, i::Int) where {T,L} = lookupget(v, T, L, i)
 
-setindex!(v::CFV{L}, x, i::Int) where L = dosetfield!(v, L, i, x)
+setindex!(v::CFV{T,L}, x, i::Int) where {T,L} = lookupset!(v, T, L, i, x)
 
+# Build functions programmatically to handle up to 200 fields
+for num_args = 1:200
+    types = join([Symbol.(string.("_T",i)) for i = 1:num_args], ",")
 
+    ex = parse("lookupget(v::V, t::Type{T}, f::Type{Tuple{$types}}, i) where {T, V,$types} = 
+                    compositeget(v, t, ($types)[i])::T")
+    eval(ex)
 
-recursive_setfield!(v, l::Tuple{Int,Vararg}, x) = 
-    recursive_setfield!(getfield(v, l[1]), Base.tail(l), x)
-
-recursive_setfield!(v, l::Tuple{Int}, x) = begin 
-    setfield!(v, l[1], x)
-    nothing
+    ex = parse("lookupset!(v::V, t::Type{T}, f::Type{Tuple{$types}}, i, x) where {T, V,$types} = 
+                    compositeset!(v, t, ($types)[i], x)::T")
+    eval(ex)
 end
 
-recursive_getfield(v, l::Tuple{Int,Vararg}) = 
-    recursive_getfield(selectfield(v, tuple(fieldnames(v)), l[1]), Base.tail(l))
+get_string(t::Tuple{T,Vararg}) where T = "getf($(get_string(Base.tail(t))), $(t[1]))"
+get_string(t::Tuple{}) = "v"
 
-recursive_getfield(v, l::Tuple{Int})::Float64 = getfield(v, l[1])
+# Maximum tree depth is 10
+for num_args = 1:20
+    types = tuple([Symbol.(string.("_T",i)) for i = 1:num_args]...)
+    types_str = join(types, ",")
+    revtypes = reverse(types)
 
-compositefieldname(v::CFV{L}, i) where L = 
-    recursive_fieldname(v, L[i][1:end-1], L[i][end])
-recursive_fieldname(v, l, i) = 
-    recursive_fieldname(selectfield(v, l[1]), Base.tail(l), i)
-recursive_fieldname(v, l::Tuple{}, i) = fieldnames(v)[i]
+    getstr = get_string(revtypes)
+    ex = parse("compositeget(v::V, t, f::Type{Tuple{$types_str}}) where {V,$types_str} = $getstr")
+    eval(ex)
 
-compositefieldnames(v::CFV{L}) where L =
-    [compositefieldname(v, i) for i in 1:length(v)]
+    getstr = "setf!($(get_string(Base.tail(revtypes))), $(revtypes[1]), x)"
+    ex = parse("compositeset!(v::V, t, f::Type{Tuple{$types_str}}, x) where {V,$types_str} = $getstr")
+    eval(ex)
+end
 
-compositefieldparent(v::CFV{L}, i::Int) where L = 
-    recursive_fieldparent(v, L[i][1:end-1])
-recursive_fieldparent(v, l) = 
-    recursive_fieldparent(getfield(v, l[1]), Base.tail(l))
-recursive_fieldparent(v, l::Tuple{}) = v
-compositefieldparents(v::CFV{L}) where L =
-    [compositefieldparent(v, i) for i in 1:length(v)]
+getf(v::V, f) where V <: Tuple = v[f]
+getf(v, f) = strip(getfield(v, f))
+strip(f) = f
+setf!(v::V, f, x) where V = setftyped!(v, f, fieldtype(V, f), x)
+setftyped!(v, f, t, x) = setfield!(v, f, x)
 
-type Syms{T} end
+
+@require Unitful begin
+    strip(f::T) where T <: Quantity = f.val
+    setftyped!(v, f, t::Type{T}, x) where T <: Quantity = begin
+        setfield!(v, f, x * oneunit(t))
+        x
+    end
+end
+
